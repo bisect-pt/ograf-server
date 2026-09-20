@@ -160,6 +160,24 @@ async function serveFile(
 	}
 
 	try {
+		const stats = await fs.stat(filePath)
+
+		// These bundles are served from fixed urls with no hash in the name, so
+		// a rebuild does not change where the browser looks. Without a
+		// validator it has nothing to check against and may go on using a build
+		// from before the rebuild, indefinitely and without ever asking again:
+		// "no-cache" means keep it, but ask first.
+		ctx.set('Cache-Control', 'no-cache')
+		ctx.lastModified = stats.mtime
+		ctx.status = 200
+
+		// Asked and unchanged, so there is nothing to send. A 304 carries no
+		// body, and so needs no content type.
+		if (ctx.fresh) {
+			ctx.status = 304
+			return
+		}
+
 		ctx.set('Content-Type', contentType)
 
 		if (contentType.startsWith('text/')) {
