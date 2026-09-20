@@ -1,4 +1,5 @@
 import * as path from 'path'
+import mime from 'mime-types'
 import * as fs from 'fs/promises'
 import Koa from 'koa'
 import Router from '@koa/router'
@@ -143,27 +144,21 @@ async function serveFile(
 	ctx: Koa.ParameterizedContext,
 	filePath: string
 ) {
-	// set header to the correct mime type
-	const ext = path.extname(filePath)
+	// The type the browser is told, which for a module script it enforces: one
+	// served as application/octet-stream is refused outright rather than run.
+	// This was a table of seven extensions that logged an error for anything
+	// else, so .json and .mjs — an OGraf manifest and the entrypoint of every
+	// Graphic — were both "unknown".
+	const contentType = mime.contentType(path.extname(filePath)) || 'application/octet-stream'
 
-	let contentType = 'application/octet-stream' // unknown
-
-	if (ext === '.js') contentType = 'text/javascript'
-	else if (ext === '.css') contentType = 'text/css'
-	else if (ext === '.html') contentType = 'text/html'
-	else if (ext === '.png') contentType = 'image/png'
-	else if (ext === '.svg') contentType = 'image/svg+xml'
-	else if (ext === '.map') contentType = 'application/json'
-	else if (ext === '.woff2') contentType = 'font/woff2'
-	else {
-		console.error(`Unknown file type: ${ext} (${filePath})`)
-	}
+	// Only the textual types carry a charset, which is also what says whether
+	// this is something to decode or bytes to pass through.
+	const isText = contentType.includes('charset=')
 
 	try {
 		ctx.set('Content-Type', contentType)
 
-		if (contentType.startsWith('text/')) {
-			ctx.set('charset', 'utf-8')
+		if (isText) {
 			ctx.body = await fs.readFile(filePath, 'utf8')
 		} else {
 			ctx.body = await fs.readFile(filePath)
