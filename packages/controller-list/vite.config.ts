@@ -17,9 +17,14 @@ export default defineConfig({
 		outDir: path.resolve(__dirname, 'dist'),
 		rollupOptions: {
 			output: {
-				assetFileNames: '[name][extname]',
-				chunkFileNames: '[name].js',
-				entryFileNames: '[name].js',
+				// With a hash in the name every build is a new url, so a
+				// browser cannot go on running the bundle from before the
+				// last one. Without it they are all called index.js, and a
+				// cached copy has nothing to displace it. index.html is
+				// rewritten to match and is itself revalidated.
+				assetFileNames: '[name]-[hash][extname]',
+				chunkFileNames: '[name]-[hash].js',
+				entryFileNames: '[name]-[hash].js',
 			},
 			onwarn(warning, warn) {
 				// Suppress "Module level directives cause errors when bundled" warnings
