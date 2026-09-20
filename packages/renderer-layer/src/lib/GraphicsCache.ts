@@ -6,15 +6,44 @@ export class GraphicCache {
 		string,
 		ServerApi.paths['/graphics/{graphicId}']['get']['responses']['200']['content']['application/json']
 	> = {}
+	private elementNames: Map<string, string> = new Map()
 	constructor(private serverApiUrl: string) {}
+
+	/**
+	 * A custom element name must begin with a lowercase ASCII letter and must
+	 * contain a hyphen. An OGraf Graphic id need not: the specification
+	 * recommends reverse domain notation, and an id such as
+	 * "dev.ograf.tutorial.ticker" is perfectly legal while being an illegal tag
+	 * name. So derive a name from the id rather than assuming it is one.
+	 */
+	private elementNameFor(graphicId: string): string {
+		const known = this.elementNames.get(graphicId)
+		if (known) return known
+
+		let name = graphicId.toLowerCase().replace(/[^a-z0-9._-]/g, '-')
+		if (!/^[a-z]/.test(name)) name = `g-${name}`
+		if (!name.includes('-')) name = `${name}-graphic`
+
+		// Two ids that differ only where the rules above do not can still
+		// reduce to the same name, and defining one twice throws.
+		const taken = new Set(this.elementNames.values())
+		let unique = name
+		for (let n = 2; taken.has(unique); n++) unique = `${name}-${n}`
+
+		this.elementNames.set(graphicId, unique)
+		return unique
+	}
+
 	async loadGraphic(graphicId: string): Promise<{
 		elementName: string
 		graphicInfo: GraphicInfo
 	}> {
+		const elementName = this.elementNameFor(graphicId)
+
 		// Check if the Graphic is already registered:
-		const cachedGraphic = customElements.get(graphicId)
+		const cachedGraphic = customElements.get(elementName)
 		const cachedGraphicInfo = this.cachedGraphicInfo[graphicId]
-		if (cachedGraphic && cachedGraphicInfo) return { elementName: graphicId, graphicInfo: cachedGraphicInfo }
+		if (cachedGraphic && cachedGraphicInfo) return { elementName, graphicInfo: cachedGraphicInfo }
 
 		console.log(`Loading Graphic "${graphicId}"`)
 
@@ -28,10 +57,10 @@ export class GraphicCache {
 		const webComponent = await this.fetchModule(graphicId, graphicInfo.graphic)
 
 		// register the web component
-		customElements.define(graphicId, webComponent)
+		customElements.define(elementName, webComponent)
 
 		return {
-			elementName: graphicId,
+			elementName,
 			graphicInfo,
 		}
 	}
